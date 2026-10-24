@@ -51,7 +51,8 @@ if(s.room===5){add('Absolútna odchýlka',Number(get('delta'))===-120,3);add('Pe
 return {checks,answer};}
 function submitRoom(){let n=s.room,{checks,answer}=evaluate(),incorrect=checks.filter(c=>!c.ok),maxRoom=max[n];s.tries[n]=(s.tries[n]||0)+1;s.answers[n]=answer;store();if(incorrect.length){const missing=incorrect.map(c=>c.label);$('feedback').innerHTML=`<div class="error"><b>Plán ešte nie je pripravený.</b><p>Skontrolujte tieto časti:</p><ul class="feedbacklist">${missing.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><p class="hint">Môžete odpovede upraviť a skúsiť to znova.</p></div>`;$('feedback').scrollIntoView({behavior:'smooth',block:'center'});return;}const penalty=Math.min(6,Math.max(0,s.tries[n]-1)*2);s.score[n]=Math.max(0,maxRoom-penalty);s.room++;if(n===5){s.finished=true;s.ended=new Date().toISOString();}store();render();}
 async function sendResults(){
- if(!s||!s.finished||s.sent)return;
+ if(!s||!s.finished||window.lumerixSending)return;
+  window.lumerixSending=true;
  const status=document.getElementById('syncStatus');
  if(status)status.textContent='Odosielanie výsledku…';
  const total=Object.values(s.score).reduce((a,b)=>a+b,0);
@@ -70,6 +71,6 @@ async function sendResults(){
   const btn=document.getElementById('retrySend');if(btn)btn.hidden=false;
  }
 }
-function finish(){badge.textContent=s.name;const total=Object.values(s.score).reduce((a,b)=>a+b,0);app.innerHTML=`<div class="tag">MANAŽÉRSKA MISIA SPLNENÁ</div><h1>🔓 MISSION COMPLETED</h1><p class="lead">Tím <b>${esc(s.name)}</b> úspešne dokončil všetkých päť miestností.</p><div class="card"><div class="score">${total} / 100 bodov</div><p>Všetky úlohy boli vyhodnotené podľa rovnakých vopred stanovených pravidiel.</p><div class="board">${[1,2,3,4,5].map(i=>`<div class="boardrow"><span>${i}. ${rooms[i]}</span><b>${s.score[i]??0} / ${max[i]} bodov</b></div>`).join('')}</div><p class="muted small">Body zohľadňujú aj počet opakovaných pokusov.</p></div><div class="card"><p id="syncStatus" class="muted">Pripravuje sa odoslanie výsledku…</p><button id="retrySend" class="ghost" hidden onclick="sendResults()">ZNOVA ODOSLAŤ VÝSLEDOK</button></div><button onclick="window.print()">VYTLAČIŤ VÝSLEDOK</button>`;window.scrollTo(0,0);if(s.sent){$("syncStatus").textContent="Výsledok už bol odoslaný. Zápis do tabuľky musí potvrdiť vyučujúci.";}else{sendResults();}}
+function finish(){badge.textContent=s.name;const total=Object.values(s.score).reduce((a,b)=>a+b,0);app.innerHTML=`<div class="tag">MANAŽÉRSKA MISIA SPLNENÁ</div><h1>🔓 MISSION COMPLETED</h1><p class="lead">Tím <b>${esc(s.name)}</b> úspešne dokončil všetkých päť miestností.</p><div class="card"><div class="score">${total} / 100 bodov</div><p>Všetky úlohy boli vyhodnotené podľa rovnakých vopred stanovených pravidiel.</p><div class="board">${[1,2,3,4,5].map(i=>`<div class="boardrow"><span>${i}. ${rooms[i]}</span><b>${s.score[i]??0} / ${max[i]} bodov</b></div>`).join('')}</div><p class="muted small">Body zohľadňujú aj počet opakovaných pokusov.</p></div><div class="card"><p id="syncStatus" class="muted">Pripravuje sa odoslanie výsledku…</p><button id="retrySend" class="ghost" onclick="sendResults()">ZNOVA ODOSLAŤ VÝSLEDOK</button></div><button onclick="window.print()">VYTLAČIŤ VÝSLEDOK</button>`;window.scrollTo(0,0);if(s.sent){$("syncStatus").textContent="Ak výsledok nie je v tabuľke, kliknite na ZNOVA ODOSLAŤ VÝSLEDOK.";}else{sendResults();}}
 showIntro();
 </script></body></html>
