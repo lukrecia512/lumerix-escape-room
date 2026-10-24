@@ -18,6 +18,7 @@ const actions={
  D:[['D1','Určiť pracovníkov na školenie','Ľudské zdroje'],['D2','Uskutočniť školenie','Ľudské zdroje'],['D3','Overiť pripravenosť pracovníkov','Výroba']],
  E:[['E1','Zmapovať logistické oneskorenia','Logistika'],['E2','Upraviť spôsob expedície','Logistika'],['E3','Overiť priebeh expedície','Logistika']]
 };
+const RESULTS_ENDPOINT='https://script.google.com/macros/s/AKfycbx0lUcLLypMFss7ml5EpKrFpNzpReqLkmZM9D1BvHzUODR8q_alUfmT9HlV5O2X10bL/exec';
 let s=null,order=[],seq5=[];
 function store(){if(s)localStorage.setItem(key,JSON.stringify(s));}
 function showIntro(){badge.textContent='MANAŽÉRSKA MISIA';app.innerHTML=`<div class="tag">OPERATION DEADLINE · MANAŽÉRSKA SIMULÁCIA</div><h1>Dokážete zachrániť výrobný plán?</h1><p class="lead">Spoločnosť LUMERIX musí zabezpečiť 1 200 svietidiel do 20 pracovných dní. Výroba nestíha, oddelenia nespolupracujú a rozpočet je obmedzený. Rozhodnutia vášho tímu určia, či objednávku splníte.</p><div class="grid"><div class="stat"><strong>5</strong><small>nadväzujúcich miestností</small></div><div class="stat"><strong>100</strong><small>možných bodov</small></div><div class="stat"><strong>1</strong><small>spoločný manažérsky plán</small></div></div><div class="card"><h2>Vytvorte tím</h2><label>Názov tímu</label><input id="team" placeholder="Napr. Plánovači"><label>Mená členov (oddeľte čiarkou, max. 5)</label><textarea id="members" placeholder="Jana Nováková, Peter Kováč"></textarea><button onclick="start()">ZAČAŤ MISIU →</button></div>${localStorage.getItem(key)?'<div class="card"><button class="ghost" onclick="continueGame()">POKRAČOVAŤ V ROZHRANEJ MISII →</button></div>':''}`;}
@@ -49,6 +50,26 @@ if(s.room===4){let {selected,cost,cap}=budget();add('Kapacita aspoň 100 kusov',
 if(s.room===5){add('Absolútna odchýlka',Number(get('delta'))===-120,3);add('Percento plnenia',Number(get('percent'))===80,3);for(let i=0;i<4;i++)add('Nápravný krok '+(i+1),seq5[i]===seq5Items[i][0],1.5);add('Kontrolný ukazovateľ',get('monitorMetric')==='pieces',2);add('Frekvencia kontroly',get('monitorFreq')==='daily',1);answer={delta:get('delta'),percent:get('percent'),sequence:[...seq5],metric:get('monitorMetric'),frequency:get('monitorFreq')};}
 return {checks,answer};}
 function submitRoom(){let n=s.room,{checks,answer}=evaluate(),incorrect=checks.filter(c=>!c.ok),maxRoom=max[n];s.tries[n]=(s.tries[n]||0)+1;s.answers[n]=answer;store();if(incorrect.length){const missing=incorrect.map(c=>c.label);$('feedback').innerHTML=`<div class="error"><b>Plán ešte nie je pripravený.</b><p>Skontrolujte tieto časti:</p><ul class="feedbacklist">${missing.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><p class="hint">Môžete odpovede upraviť a skúsiť to znova.</p></div>`;$('feedback').scrollIntoView({behavior:'smooth',block:'center'});return;}const penalty=Math.min(6,Math.max(0,s.tries[n]-1)*2);s.score[n]=Math.max(0,maxRoom-penalty);s.room++;if(n===5){s.finished=true;s.ended=new Date().toISOString();}store();render();}
-function finish(){badge.textContent=s.name;const total=Object.values(s.score).reduce((a,b)=>a+b,0);app.innerHTML=`<div class="tag">MANAŽÉRSKA MISIA SPLNENÁ</div><h1>🔓 MISSION COMPLETED</h1><p class="lead">Tím <b>${esc(s.name)}</b> úspešne dokončil všetkých päť miestností.</p><div class="card"><div class="score">${total} / 100 bodov</div><p>Všetky úlohy boli vyhodnotené podľa rovnakých vopred stanovených pravidiel.</p><div class="board">${[1,2,3,4,5].map(i=>`<div class="boardrow"><span>${i}. ${rooms[i]}</span><b>${s.score[i]??0} / ${max[i]} bodov</b></div>`).join('')}</div><p class="muted small">Body zohľadňujú aj počet opakovaných pokusov.</p></div><button onclick="window.print()">VYTLAČIŤ VÝSLEDOK</button>`;window.scrollTo(0,0);}
+async function sendResults(){
+ if(!s||!s.finished||s.sent)return;
+ const status=document.getElementById('syncStatus');
+ if(status)status.textContent='Odosielanie výsledku…';
+ const total=Object.values(s.score).reduce((a,b)=>a+b,0);
+ const payload={teamName:s.name,members:s.members.join(', '),teamId:s.id,
+  room1:s.score[1]||0,room2:s.score[2]||0,room3:s.score[3]||0,
+  room4:s.score[4]||0,room5:s.score[5]||0,total,
+  answers:s.answers,attempts:s.tries,started:s.started,ended:s.ended};
+ try{
+  await fetch(RESULTS_ENDPOINT,{method:'POST',mode:'no-cors',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+  s.sent=true;store();
+  if(status)status.textContent='Výsledok bol odoslaný. Zápis do tabuľky musí potvrdiť vyučujúci.';
+  const btn=document.getElementById('retrySend');if(btn)btn.hidden=true;
+ }catch(e){
+  if(status)status.textContent='Odoslanie sa nepodarilo. Skúste to znova.';
+  const btn=document.getElementById('retrySend');if(btn)btn.hidden=false;
+ }
+}
+function finish(){badge.textContent=s.name;const total=Object.values(s.score).reduce((a,b)=>a+b,0);app.innerHTML=`<div class="tag">MANAŽÉRSKA MISIA SPLNENÁ</div><h1>🔓 MISSION COMPLETED</h1><p class="lead">Tím <b>${esc(s.name)}</b> úspešne dokončil všetkých päť miestností.</p><div class="card"><div class="score">${total} / 100 bodov</div><p>Všetky úlohy boli vyhodnotené podľa rovnakých vopred stanovených pravidiel.</p><div class="board">${[1,2,3,4,5].map(i=>`<div class="boardrow"><span>${i}. ${rooms[i]}</span><b>${s.score[i]??0} / ${max[i]} bodov</b></div>`).join('')}</div><p class="muted small">Body zohľadňujú aj počet opakovaných pokusov.</p></div><div class="card"><p id="syncStatus" class="muted">Pripravuje sa odoslanie výsledku…</p><button id="retrySend" class="ghost" hidden onclick="sendResults()">ZNOVA ODOSLAŤ VÝSLEDOK</button></div><button onclick="window.print()">VYTLAČIŤ VÝSLEDOK</button>`;window.scrollTo(0,0);if(s.sent){$("syncStatus").textContent="Výsledok už bol odoslaný. Zápis do tabuľky musí potvrdiť vyučujúci.";}else{sendResults();}}
 showIntro();
 </script></body></html>
